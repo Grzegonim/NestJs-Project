@@ -1,5 +1,7 @@
-import { Controller, Get, Param, Delete } from '@nestjs/common';
+import { Controller, Get, Post, Put, Param, Delete, ParseUUIDPipe, NotFoundException, Body } from '@nestjs/common';
 import { OrdersService } from './orders.service';
+import { CreateOrderDTO } from './create-order-dto';
+import { UpdateOrderDTO } from './update-order-dto';
 
 @Controller('orders')
 export class OrdersController {
@@ -14,4 +16,32 @@ export class OrdersController {
   getById(@Param('id') id: string) {
     return this.orderService.getById(id);
   } 
+
+  @Delete('/:id')
+  removeOrder(@Param('id', new ParseUUIDPipe()) id: string) {
+    if(!this.orderService.getById(id)) {
+      throw new NotFoundException('Order not found');
+    }
+
+    this.orderService.removeOrder(id);
+    return { success: true }
+  }
+
+  @Post('/')
+  create(@Body() orderData: CreateOrderDTO) {
+    return this.orderService.create(orderData)
+  }
+
+  @Put('/:id')
+  update(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() orderData: UpdateOrderDTO,
+  ) {
+    if(!this.orderService.getById(id)) {
+      throw new NotFoundException('Order not found');
+    }
+
+    this.orderService.updateById(id, orderData);
+    return { success: true };
+  }
 }
