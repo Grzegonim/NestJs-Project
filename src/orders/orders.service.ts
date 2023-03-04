@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { NotFoundException } from '@nestjs/common';
+import { NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from 'src/shared/services/prisma.service';
 import { Order } from '@prisma/client';
 
@@ -8,12 +8,13 @@ export class OrdersService {
   constructor(private prismaService: PrismaService) {}
   
   public getAll(): Promise<Order[]> {
-    return this.prismaService.order.findMany();
+    return this.prismaService.order.findMany({ include: { product: true } });
   }
 
   public async getById(id: Order['id']): Promise<Order | null> {
     const order = await this.prismaService.order.findUnique({
-      where: { id }
+      where: { id },
+      include: { product: true },
     });
     if(!order) {
       throw new NotFoundException('Order not found');
@@ -33,15 +34,28 @@ export class OrdersService {
     });
   }
 
-  public create(orderData: Omit<Order, 'id' | 'createdAt' | 'updatedAt'>): Promise<Order> {
-    return this.prismaService.order.create({
-      data: orderData,
-    });
-  }
+  public async create(orderData: Omit<Order, 'id' | 'createdAt' | 'updatedAt' | 'clientId'>): Promise<Order> {
+    const { productId, ...otherData } = orderData;
+    try {
+      return await this.prismaService.order.create({
+        data: {
+          ...otherData,
+          product: {
+            connect: { id: productId },
+          },
+        },
+      });
+    } catch (error) {
+      if (error.code === 'P2025')
+        throw new BadRequestException("Product doesn't exist");
+      throw error;
+    }
+  }  
 
-  public async updateById(id: Order['id'], orderData: Omit<Order, 'id' | 'createdAt' | 'updatedAt'>): Promise<Order> {
+  public async updateById(id: Order['id'], orderData: Omit<Order, 'id' | 'createdAt' | 'updatedAt' | 'clientId'>): Promise<Order> {
+    const { productId, ...otherData } = orderData;
     const order = await this.prismaService.order.findUnique({
-      where: { id }
+      where: { id },
     });
     if(!order) {
       throw new NotFoundException('Order not found');
@@ -49,7 +63,12 @@ export class OrdersService {
 
     return this.prismaService.order.update({
       where: { id },
-      data: orderData,
+      data: {
+        ...otherData,
+        product: {
+          connect: { id: productId },
+        },
+      },
     });
   }
 }
